@@ -1,4 +1,5 @@
 import math
+from random import choice, sample
 
 import pygame
 import os
@@ -30,7 +31,7 @@ class Block_1(pygame.sprite.Sprite):
     img_block = pygame.transform.scale(load_image('tile.jpg'), (65, 120))
 
     def __init__(self, x, y):
-        super().__init__(block_group)
+        super().__init__(block_group, all_sprites)
         self.image = Block_1.img_block
         self.rect = self.image.get_rect().move(x, y)
         self.abs_pos = self.rect.x
@@ -41,7 +42,7 @@ class Block_2(pygame.sprite.Sprite):
     img_block = pygame.transform.scale(load_image('img.png'), (50, 120))
 
     def __init__(self, x, y):
-        super().__init__(block_group)
+        super().__init__(block_group, all_sprites)
         self.image = Block_2.img_block
         self.rect = self.image.get_rect().move(x, y)
         self.abs_pos = self.rect.x
@@ -51,7 +52,7 @@ class Surface_water(pygame.sprite.Sprite):
     img_block = pygame.transform.scale(load_image('img_1.png'), (50, 120))
 
     def __init__(self, x, y):
-        super().__init__(block_group)
+        super().__init__(water_group, all_sprites)
         self.image = Surface_water.img_block
         self.rect = self.image.get_rect().move(x, y)
         self.abs_pos = self.rect.x
@@ -222,7 +223,7 @@ def pause_screen():
     pass
 
 
-def update_group(screen, text='', hero=True, coins=True, block=True, ghost=True):
+def update_group(screen, text='', hero=True, coins=True, block=True, ghost=True, water=True):
     if hero:
         hero_group.update()
         hero_group.draw(screen)
@@ -235,6 +236,9 @@ def update_group(screen, text='', hero=True, coins=True, block=True, ghost=True)
     if ghost:
         ghost_group.update()
         ghost_group.draw(screen)
+    if water:
+        water_group.update()
+        water_group.draw(screen)
 
 
 def load_level(filename):
@@ -332,17 +336,16 @@ class Main_Hero(Sprite):
         elif pressed_keys[pygame.K_RIGHT]:
             self.cur_frame = (self.cur_frame + 1) % len(self.frames)
             self.image = self.frames[self.cur_frame]
-        global block_group
+        global block_group, Surface_water
         hits = pygame.sprite.spritecollide(self, block_group, False)
         if hits:
             self.pos.y = hits[0].rect.top + 1
             self.vel.y = 0
 
         global SCORE, level
-        if pygame.sprite.spritecollideany(self, ghost_group):
+        if pygame.sprite.spritecollideany(self, water_group):
             if level == 1:
-                '''add_inf_game(SCORE)
-                create_particles((self.rect[0], self.rect[1]))'''
+                create_particles((self.rect[0], self.rect[1]))
                 pass
             else:
                 '''add_stand_game(SCORE, level)
@@ -369,7 +372,7 @@ class Main_Hero(Sprite):
         self.vel += self.acc
         global camera
         camera.dx -= (self.vel[0] + 0.5 * self.acc[0] + self.pos[0] - self.pos[0])
-        for sprite in block_group:
+        for sprite in all_sprites:
             camera.apply(sprite)
 
         self.pos += self.vel + 0.5 * self.acc
@@ -383,21 +386,31 @@ class Main_Hero(Sprite):
 
 
 def level_1():
-    global screen, level, hero_group, ghost_group, block_group, coins_group, particle_group, max_x, max_y, camera
+    global screen, level, hero_group, ghost_group, block_group, coins_group, particle_group, max_x, max_y, camera,\
+        scroll, SCORE, level_map, water_group
 
     pause = False
     time = False
     esc_key = False
+    hero_group = pygame.sprite.Group()  # главный герой
+    coins_group = pygame.sprite.Group()  # монеты
+    ghost_group = pygame.sprite.Group()  # привидения
+    particle_group = pygame.sprite.Group()  # частицы
+    block_group = pygame.sprite.Group()  # блоки
+    water_group = pygame.sprite.Group()
+    scroll = 0
+    SCORE = 0
     pygame.display.set_caption('Уровень 1')
     location_1 = pygame.transform.scale(load_image('location_1.jpg'), screen.get_size())
     level = 1
-    scroll = 0
+
     titles = math.ceil(WIDHT / location_1.get_width()) + 1
     clock = pygame.time.Clock()
     level_map = load_level(f"level_1.map")
     max_x, max_y, hero = generate_level(level_map)
-    count, SCORE = 0, 10
+    count = 4
     camera = Camera()
+    camera.update()
     running = True
     while running:
 
@@ -405,11 +418,14 @@ def level_1():
         if not esc_key:
             if not pause:
                 if count == SCORE:
-                    return level + 1
+                    level += 1
+                    next_level_2_screen()
                 if SCORE == 'GAME OVER':
                     if not time:
                         time_now = pygame.time.get_ticks() + 3000
                         time = True
+                elif SCORE % 2 == 0:
+                    generate_coins(level_map)
 
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
@@ -480,6 +496,68 @@ def level_2():
         pygame.display.update()
 
 
+class Coins(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__(coins_group, all_sprites)
+        self.image = pygame.transform.scale(load_image("icon_money.png", -1), (SIZE_SP // 2, SIZE_SP // 2))
+        self.rect = self.image.get_rect(center=(SIZE_SP // 2, SIZE_SP // 2))
+        self.rect = self.rect.move(x, y)
+        self.pos = (x // SIZE_SP, y // SIZE_SP)
+        self.abs_pos = [self.rect.x, self.rect.y]
+
+    def update(self) -> None:
+        global SCORE, level_map
+        x, y = self.pos
+        # print(x, y)
+        if pygame.sprite.spritecollideany(self, hero_group):
+            if SCORE != 'GAME OVER':
+                SCORE += 1
+            self.kill()
+            if level == 1:
+                level_map[y][x] = '*'
+
+
+def generate_coins(level_map):
+    for y in range(sample([0, 1, 2], 1)[0], len(level_map), 2):
+        for x in range(sample([0, 1, 2], 1)[0], len(level_map[y]), 2):
+            if level_map[y][x] == '*':
+                Coins(x * SIZE_SP, y * SIZE_SP)
+                level_map[y][x] = '.'
+
+
+def create_particles(position):
+    # количество создаваемых частиц
+    particle_count = 20
+    # возможные скорости
+    numbers = range(-5, 6)
+    for _ in range(particle_count):
+        Particle(position, choice(numbers), choice(numbers))
+
+
+class Particle(pygame.sprite.Sprite):
+    # сгенерируем частицы разного размера
+    fire = [load_image("star.png", -1)]
+
+    for scale in (5, 10, 20):
+        fire.append(pygame.transform.scale(choice(fire), (scale, scale)))
+
+    def __init__(self, pos, dx, dy):
+        super().__init__(particle_group)
+        self.image = choice(self.fire)
+        self.rect = self.image.get_rect()
+
+        self.velocity = [dx, dy]
+        self.rect.x, self.rect.y = pos
+        self.gravity = 0.4
+
+    def update(self, *args):
+        self.velocity[1] += self.gravity
+        self.rect.x += self.velocity[0]
+        self.rect.y += self.velocity[1]
+        if not self.rect.colliderect((0, 0, max_x * SIZE_SP, max_y * SIZE_SP)):
+            self.kill()
+
+
 # экран меню
 def splash_screen():
     global screen, level, hero_group, ghost_group, block_group, coins_group, particle_group, max_x, max_y
@@ -523,15 +601,20 @@ if __name__ == "__main__":
     font = pygame.font.Font('font/TanaUncialSP.otf', 70)
     font_button = pygame.font.Font('font/TanaUncialSP.otf', 40)
 
+    SCORE = 0
+
     # группы спрайтов
     hero_group = pygame.sprite.Group()  # главный герой
     coins_group = pygame.sprite.Group()  # монеты
     ghost_group = pygame.sprite.Group()  # привидения
     particle_group = pygame.sprite.Group()  # частицы
     block_group = pygame.sprite.Group()  # блоки
+    water_group = pygame.sprite.Group()  # вода
+    all_sprites = pygame.sprite.Group()
 
     camera = None
     level = None
+    level_map = None
     hero = None
     max_x = 31
     max_y = 14
