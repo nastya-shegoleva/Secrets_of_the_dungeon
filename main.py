@@ -8,6 +8,7 @@ import sys
 WIDHT = 1550
 HEIGHT = 800
 SIZE_SP = 50
+FPS = 40
 
 
 # загрузка изображений
@@ -114,15 +115,57 @@ def game_over_screen():
                     running = False
         pygame.display.flip()
     if flag_game_over:
-        pass
-        # LEVEL 1
+        level_1()
     if flag_menu_screen:
         splash_screen()
 
 
 # экран настроек
 def setting_screen():
-    pass
+    global screen, sound_flag, sound_status
+
+    # кнопки
+    text = font.render('Sound', True, 'aquamarine2')
+
+    x, y = 620, 200
+    button_group = pygame.sprite.Group()
+    for word in ['Off', 'On']:
+        Button(button_group, word, x, y)
+        y += 120
+
+    # фото
+    image_setting = pygame.transform.scale(load_image('setting.jpg'), screen.get_size())
+    pygame.display.set_caption('Setting')
+
+    running = True
+    esc_key = False
+
+    while running:
+        if not esc_key:
+            screen.blit(image_setting, (0, 0))
+            screen.blit(text, (650, 100))
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    close()
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        esc_key = True
+                button_group.draw(screen)
+                button_group.update(event)
+                if sound_status == 'off':
+                    sound_flag = False
+                if sound_status == 'on':
+                    sound_flag = True
+                if sound_flag:
+                    pygame.mixer.music.play(-1)
+                else:
+                    pygame.mixer.music.pause()
+        else:
+            esc_key = splash_screen()
+        button_group.draw(screen)
+        button_group.update()
+        pygame.display.flip()
 
 
 # экран рейтинга
@@ -180,8 +223,6 @@ def next_level_2_screen():
                     running = False
         pygame.display.flip()
     level_2()
-    # ОТКРЫТЬ 2 УРОВЕНЬ
-    next_level_3_screen()
 
 
 # переход на 3 уровень
@@ -207,7 +248,6 @@ def next_level_3_screen():
                     running = False
         pygame.display.flip()
     # ОТКРЫТЬ 3 УРОВЕНЬ
-    win_screen()
 
 
 # завершение игры
@@ -218,7 +258,17 @@ def close():
 
 # пауза
 def pause_screen():
-    pass
+    global sound_flag
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            close()
+        elif event.type == pygame.KEYDOWN and event.key == pygame.K_p:
+            if sound_flag:
+                pygame.mixer.music.unpause()
+                return False
+            else:
+                return False
+    return True
 
 
 def load_level(filename):
@@ -242,12 +292,17 @@ class Button(pygame.sprite.Sprite):
         self.all_text = font_button.render(self.text, True, 'seagreen4')
 
     def update(self, *args) -> None:
-        global level
+        global level, sound_status
         screen.blit(self.all_text, (self.rect.x + 80, self.rect.y + 28))
         if args and args[0].type == pygame.MOUSEBUTTONDOWN and self.rect.collidepoint(args[0].pos):
-            print(self.text)
             if self.text == 'Play':
                 level = 1
+            if self.text == 'Setting':
+                level = 5
+            if self.text == 'Off':
+                sound_status = 'off'
+            if self.text == 'On':
+                sound_status = 'on'
 
 
 def generate_level(level):
@@ -288,6 +343,34 @@ class Sprite(pygame.sprite.Sprite):
                 self.frames.append(sheet.subsurface(pygame.Rect(frame_location, self.rect.size)))
 
 
+# привидения
+class Ghost(Sprite):
+    colums = 4
+    row = 1
+    img = pygame.transform.scale(load_image('ghost_2.png', -1), (375, 123))
+    ghost_img = pygame.transform.flip(img, True, False)
+
+    def __init__(self):
+        super().__init__(ghost_group)
+        self.sheet = Ghost.ghost_img
+        self.frames = []
+        self.cut_sheet(self.sheet, Ghost.colums, Ghost.row)
+        self.cur_frame = 0
+        self.image = self.frames[self.cur_frame]
+
+        self.rect = self.image.get_rect()
+        self.rect.x = WIDHT + 150
+        self.rect.y = 360
+
+        self.mask = pygame.mask.from_surface(self.image)
+
+    def update(self) -> None:
+        if self.rect.x == -150:
+            self.kill()
+        else:
+            self.rect.x -= 1.8
+
+
 class Main_Hero(Sprite):
     columns = 10
     rows = 1
@@ -311,6 +394,8 @@ class Main_Hero(Sprite):
         self.acc = self.vec(0, 0)
         self.pos = self.vec(x // SIZE_SP, y // SIZE_SP)
 
+        self.mask = pygame.mask.from_surface(self.image)
+
     def update(self, *args) -> None:
         global block_group, water_group
 
@@ -327,8 +412,8 @@ class Main_Hero(Sprite):
             self.cur_frame = 1
             self.image = self.frames[self.cur_frame]
 
-        global SCORE, level, camera
-        if pygame.sprite.spritecollideany(self, water_group):
+        global SCORE, level, camera, ghost
+        if pygame.sprite.spritecollideany(self, water_group) or pygame.sprite.collide_mask(self, ghost):
             self.kill()
             create_particles((self.rect[0], self.rect[1]))
             SCORE = 'GAME OVER'
@@ -379,14 +464,15 @@ class Main_Hero(Sprite):
 
 def level_1():
     global screen, level, hero_group, ghost_group, block_group, coins_group, particle_group, max_x, max_y, \
-        camera, water_group, level_map, SCORE
+        camera, water_group, level_map, SCORE, ghost
 
     pause = False
     time = False
     esc_key = False
+    time_ghost = False
     level = 1
     clock = pygame.time.Clock()
-    count = 17
+    count = 7
     SCORE = 0
     x_pos_location = 0
     running = True
@@ -404,22 +490,39 @@ def level_1():
     camera = Camera()
     camera.update()
 
+    # привидение
+    ghost = Ghost()
+    ghost_timer = pygame.USEREVENT + 1
+    pygame.time.set_timer(ghost_timer, 7000)
+
     while running:
-        screen.fill(0)
-        screen.blit(location_1, (x_pos_location, 0))
-        screen.blit(location_1, (x_pos_location + WIDHT, 0))
-        screen.blit(location_1, (x_pos_location - WIDHT, 0))
-        screen.blit(location_1, (x_pos_location + WIDHT + WIDHT, 0))
-        screen.blit(location_1, (x_pos_location + WIDHT + WIDHT + WIDHT, 0))
-
-        x_pos_location -= hero.vel.x * 2
-
         text = font_button.render(f'SCORE: {SCORE}', True, 'white')
 
         if not esc_key:
             if not pause:
+                screen.fill(0)
+                screen.blit(location_1, (x_pos_location, 0))
+                screen.blit(location_1, (x_pos_location + WIDHT, 0))
+                screen.blit(location_1, (x_pos_location - WIDHT, 0))
+                screen.blit(location_1, (x_pos_location + WIDHT + WIDHT, 0))
+                screen.blit(location_1, (x_pos_location + WIDHT + WIDHT + WIDHT, 0))
+
+                x_pos_location -= hero.vel.x * 2
+
+                # смена картинки у привидения
+                if not time_ghost:
+                    time_now_ghost = pygame.time.get_ticks() + 400
+                    time_ghost = True
+                else:
+                    if time_ghost and time_now_ghost <= pygame.time.get_ticks():
+                        time_now_ghost = pygame.time.get_ticks() + 400
+                        time_ghost = False
+                        ghost.cur_frame = (ghost.cur_frame + 1) % len(ghost.frames)
+                        ghost.image = ghost.frames[ghost.cur_frame]
+
                 if count == SCORE:
                     level += 1
+                    running = False
                     next_level_2_screen()
                 if SCORE == 'GAME OVER':
                     if not time:
@@ -431,6 +534,8 @@ def level_1():
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
                         close()
+                    if event.type == ghost_timer and ghost.rect.x == -150  and SCORE != 'GAME OVER':
+                        ghost = Ghost()
                     elif event.type == pygame.KEYDOWN:
                         hero.update(event)
                         if event.key == pygame.K_UP:
@@ -439,12 +544,20 @@ def level_1():
                             pygame.mixer.music.pause()
                             pause = True
                         elif event.key == pygame.K_ESCAPE:
+                            pygame.mixer.music.pause()
                             esc_key = True
                 hero.move()
                 hero.update()
+                ghost.update()
+                ghost_group.draw(screen)
+                ghost_group.update()
                 for entity in all_sprites:
                     screen.blit(entity.image, entity.rect)
                 update_screen(screen, text)
+
+
+
+                # окно game over
                 if time and time_now <= pygame.time.get_ticks():
                     game_over_screen()
                     running = False
@@ -454,7 +567,7 @@ def level_1():
             if level:
                 esc_key = splash_screen()
         pygame.display.update()
-        clock.tick(50)
+        clock.tick(FPS)
 
 
 def update_screen(screen, text, ghost=False, coins=True, block=True, water=True, particle=True):
@@ -508,13 +621,13 @@ def level_2():
             scroll = 0
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                run = False
+                close()
         pygame.display.update()
 
 
 # экран меню
 def splash_screen():
-    global screen, level, hero_group, ghost_group, block_group, coins_group, particle_group, max_x, max_y, SCORE
+    global screen, level, hero_group, ghost_group, block_group, coins_group, particle_group, max_x, max_y, SCORE, sound_flag
 
     # фото и текст на экране меню
     main_menu = pygame.transform.scale(load_image('main_menu.jpg'), screen.get_size())
@@ -540,6 +653,12 @@ def splash_screen():
         if level == 1:
             level = 1
             level_1()
+        if level == 5:
+            setting_screen()
+        if sound_flag:
+            pygame.mixer.music.play(-1)
+        else:
+            pygame.mixer.music.pause()
         button_group.draw(screen)
         button_group.update()
         pygame.display.flip()
@@ -561,7 +680,8 @@ class Coins(pygame.sprite.Sprite):
             if SCORE != 'GAME OVER':
                 SCORE += 1
             self.kill()
-            level_map[y][x] = '$'
+            if level:
+                level_map[y][x] = '$'
 
 
 def generate_coins(level_map):
@@ -625,11 +745,17 @@ if __name__ == "__main__":
     water_group = pygame.sprite.Group()  # вода
     all_sprites = pygame.sprite.Group()  # все спрайты
 
+    # подключение звука
+    pygame.mixer.music.load('sound/звук_пещеры.mp3')
+
     SCORE = 0
     camera = None
     level = None
     hero = None
+    ghost = None
     level_map = None
     max_x = 31
     max_y = 14
+    sound_flag = True
+    sound_status = None
     splash_screen()
