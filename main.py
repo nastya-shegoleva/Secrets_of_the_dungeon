@@ -5,6 +5,10 @@ import pygame
 import os
 import sys
 
+from data_db import db_session
+from data_db.creating_tag import add_game
+from data_db.game_func import Game
+
 WIDHT = 1550
 HEIGHT = 800
 SIZE_SP = 50
@@ -170,7 +174,45 @@ def setting_screen():
 
 # экран рейтинга
 def rating_screen():
-    pass
+    global screen, level, SCORE
+
+    text = font.render("Rating", True, 'palegreen2')
+    image = pygame.transform.scale(load_image('rating.jpg'), screen.get_size())
+    pygame.display.set_caption('Rating')
+
+    running = True
+    esc_key = False
+
+    while running:
+        if not esc_key:
+            screen.blit(image, (0, 0))
+            screen.blit(text, (600, 50))
+
+            lst = []
+            db_sess = db_session.create_session()
+            game = db_sess.query(Game).all()
+            lst.extend(game)
+            list_db = sorted(lst, key=lambda x: x.create_date, reverse=True)
+            db_sess.close()
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    close()
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    esc_key = True
+            count = 1
+            y = 3
+            for el in list_db[:6]:
+                if SCORE != 'GAME OVER':
+                    meaning_rating = font_button.render(
+                        f'{count} | {el.level} | {el.score}',
+                        True, pygame.Color("white"))
+                    count += 1
+                    screen.blit(meaning_rating, (620, y * SIZE_SP))
+                    y += 1
+        else:
+            esc_key = splash_screen()
+        pygame.display.flip()
 
 
 # выигрыш
@@ -252,6 +294,9 @@ def next_level_3_screen():
 
 # завершение игры
 def close():
+    global SCORE, level
+    if level:
+        add_game(SCORE, level)
     pygame.quit()
     sys.exit()
 
@@ -298,7 +343,9 @@ class Button(pygame.sprite.Sprite):
             if self.text == 'Play':
                 level = 1
             if self.text == 'Setting':
-                level = 5
+                level = 'setting'
+            if self.text == 'Rating':
+                level = 'rating'
             if self.text == 'Off':
                 sound_status = 'off'
             if self.text == 'On':
@@ -413,7 +460,10 @@ class Main_Hero(Sprite):
             self.image = self.frames[self.cur_frame]
 
         global SCORE, level, camera, ghost
-        if pygame.sprite.spritecollideany(self, water_group) or pygame.sprite.collide_mask(self, ghost):
+        if pygame.sprite.spritecollideany(self, water_group) or pygame.sprite.collide_mask(self,
+                                                                                           ghost) and SCORE != 'GAME OVER':
+            if level == 1 or level == 2 or level == 3:
+                add_game(SCORE, level)
             self.kill()
             create_particles((self.rect[0], self.rect[1]))
             SCORE = 'GAME OVER'
@@ -534,7 +584,7 @@ def level_1():
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
                         close()
-                    if event.type == ghost_timer and ghost.rect.x == -150  and SCORE != 'GAME OVER':
+                    if event.type == ghost_timer and ghost.rect.x == -150 and SCORE != 'GAME OVER':
                         ghost = Ghost()
                     elif event.type == pygame.KEYDOWN:
                         hero.update(event)
@@ -555,8 +605,6 @@ def level_1():
                     screen.blit(entity.image, entity.rect)
                 update_screen(screen, text)
 
-
-
                 # окно game over
                 if time and time_now <= pygame.time.get_ticks():
                     game_over_screen()
@@ -565,7 +613,10 @@ def level_1():
                 pause = pause_screen()
         else:
             if level:
-                esc_key = splash_screen()
+                if level == 1:
+                    add_game(SCORE, level)
+                    esc_key = splash_screen()
+
         pygame.display.update()
         clock.tick(FPS)
 
@@ -653,8 +704,10 @@ def splash_screen():
         if level == 1:
             level = 1
             level_1()
-        if level == 5:
+        if level == 'setting':
             setting_screen()
+        if level == 'rating':
+            rating_screen()
         if sound_flag:
             pygame.mixer.music.play(-1)
         else:
@@ -747,6 +800,9 @@ if __name__ == "__main__":
 
     # подключение звука
     pygame.mixer.music.load('sound/звук_пещеры.mp3')
+
+    # подключение базы данных
+    db_session.global_init("db/game_secret.db")
 
     SCORE = 0
     camera = None
