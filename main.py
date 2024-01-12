@@ -365,9 +365,13 @@ def generate_level(level):
                 Surface_water(x * 51, y * 55)
             elif level[y][x] == '%':
                 hero = Main_Hero(x * SIZE_SP, y * SIZE_SP)
+                level[y][x] = "."
             elif level[y][x] == '*':
                 Coins(x * SIZE_SP, y * SIZE_SP)
-
+                level[y][x] = "."
+            elif level[y][x] == '!':
+                Dot(x * SIZE_SP, y * SIZE_SP)
+                level[y][x] = "."
     return x, y, hero
 
 
@@ -569,7 +573,7 @@ def level_1():
                         time_now = pygame.time.get_ticks() + 3000
                         time = True
                 elif SCORE % 2 == 0:
-                    generate_coins(level_map)
+                    generate_coins(level_map, hero.rect.x)
 
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
@@ -608,7 +612,7 @@ def level_1():
         clock.tick(FPS)
 
 
-def update_screen(screen, text, ghost=False, coins=True, block=True, water=True, particle=True):
+def update_screen(screen, text, ghost=False, coins=True, block=True, water=True, particle=True, dot=True):
     if hero:
         hero_group.update()
         hero_group.draw(screen)
@@ -627,6 +631,9 @@ def update_screen(screen, text, ghost=False, coins=True, block=True, water=True,
     if particle:
         particle_group.draw(screen)
         particle_group.update()
+    if dot:
+        dot_group.draw(screen)
+        dot_group.update()
     screen.blit(text, (WIDHT - text.get_width() - 50, 10))
 
 
@@ -641,9 +648,9 @@ def level_2():
     block_group = pygame.sprite.Group()  # блоки
     water_group = pygame.sprite.Group()  # вода
 
-    bullet = pygame.transform.scale(load_image("arrow.png", -1), (20, 10)) # пули
+    bullet = pygame.transform.scale(load_image("arrow.png", -1), (20, 10))  # пули
     lst_bullet = []
-    HP_ghost = 2
+    HP_ghost, HP_hero = 2, 3
 
     pause = False
     time = False
@@ -689,13 +696,14 @@ def level_2():
                     for pos, bul in enumerate(lst_bullet):
                         screen.blit(bullet, (bul.x, bul.y))
                         bul.x += 8
-                        if bul.x > 820:
+                        if bul.x > 1550 and hero.rect.x < 1550:
                             lst_bullet.pop(pos)
                         if ghost:
                             if bul.colliderect(ghost):
                                 if HP_ghost > 0:
                                     HP_ghost -= 1
                                     if HP_ghost == 0:
+                                        HP_ghost = 2
                                         ghost.kill()
                                 lst_bullet.pop(pos)
 
@@ -709,7 +717,7 @@ def level_2():
                 if abs(x_pos_location) > location_2_width:
                     x_pos_location = 0
 
-                text = font_button.render(f'SCORE: {SCORE}', True, 'white')
+                text = font_button.render(f'HP: {HP_hero}  SCORE: {SCORE}', True, 'white')
 
                 # смена картинки у привидения
                 if not time_ghost:
@@ -729,8 +737,10 @@ def level_2():
                     if not time:
                         time_now = pygame.time.get_ticks() + 3000
                         time = True
-                elif SCORE % 2 == 0:
-                    generate_coins(level_map)
+                if not coins_group:
+                    generate_coins(level_map, hero.rect.x)
+                if HP_hero < 3:
+                    generate_dot()
 
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
@@ -826,15 +836,15 @@ class Coins(pygame.sprite.Sprite):
                 SCORE += 1
             self.kill()
             if level:
-                level_map[y][x] = '$'
+                level_map[y][x] = '*'
 
 
-def generate_coins(level_map):
+def generate_coins(level_map, hero_x):
     for y in range(sample([0, 1, 2], 1)[0], len(level_map), 2):
         for x in range(sample([0, 1, 2], 1)[0], len(level_map[y]), 2):
-            if level_map[y][x] == '$':
+            if level_map[y][x] == '*' and x * SIZE_SP > hero_x:
                 Coins(x * SIZE_SP, y * SIZE_SP)
-                level_map[y][x] = '*'
+                level_map[y][x] = '.'
 
 
 def create_particles(position):
@@ -870,28 +880,36 @@ class Particle(pygame.sprite.Sprite):
             self.kill()
 
 
-'''class Bullets(pygame.sprite.Sprite):
+class Dot(pygame.sprite.Sprite):
+    dot = pygame.transform.scale(load_image("dot.png", -1), (SIZE_SP, SIZE_SP))
+
     def __init__(self, x, y):
-        super().__init__(bullets_group, all_sprites)
-        self.pos = [x, y]
-        self.image = pygame.transform.scale(load_image("arrow.png", -1), (20, 10))
-        self.rect = self.image.get_rect(topleft=(x + 60, y + 30)))
-        self.pos = pygame.math.Vector2(self.pos)
-        self.vel = pygame.math.Vector2(0, -450)
-        self.abs_pos = self.pos[0]
+        super().__init__(dot_group, all_sprites)
+        self.image = Dot.dot
+        self.rect = self.image.get_rect(center=(SIZE_SP // 2, SIZE_SP // 2))
+        self.rect = self.rect.move(x, y)
+        self.pos = (x // SIZE_SP, y // SIZE_SP)
+        self.abs_pos = self.rect.x
 
     def update(self) -> None:
-        global SCORE, ghost_group
-        self.pos += self.vel
-        self.rect.center = self.pos
-        if pygame.sprite.spritecollideany(self, ghost_group):
+        global HP_hero, level_map
+        x, y = self.pos
+        # print(x, y)
+        if pygame.sprite.spritecollideany(self, hero_group):
+            if HP_hero < 3:
+                HP_hero += 1
             self.kill()
-        if not self.rect.colliderect((0, 0, 1550, 800)):
-            self.kill()'''
+            if level == 2:
+                level_map[y][x] = '*'
 
 
-def create_arrows(position):
-    pass
+def generate_dot():
+    global level_map
+    for y in range(sample([0, 1, 2], 1)[0], len(level_map), 2):
+        for x in range(sample([0, 1, 2], 1)[0], len(level_map[y]), 2):
+            if level_map[y][x] == '!':
+                Dot(x * SIZE_SP, y * SIZE_SP)
+                level_map[y][x] = '.'
 
 
 if __name__ == "__main__":
@@ -913,6 +931,7 @@ if __name__ == "__main__":
     block_group = pygame.sprite.Group()  # блоки
     water_group = pygame.sprite.Group()  # вода
     all_sprites = pygame.sprite.Group()  # все спрайты
+    dot_group = pygame.sprite.Group()  # зелья
 
     # подключение звука
     pygame.mixer.music.load('sound/звук_пещеры.mp3')
@@ -928,7 +947,7 @@ if __name__ == "__main__":
     level_map = None
     max_x = 31
     max_y = 14
-    HP_ghost, HP_hero = 2, 2
+    HP_ghost, HP_hero = 2, 3
     sound_flag = True
     sound_status = None
     splash_screen()
