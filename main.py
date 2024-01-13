@@ -52,6 +52,7 @@ class Block_2(pygame.sprite.Sprite):
         self.abs_pos = self.rect.x
 
 
+# поверхность воды
 class Surface_water(pygame.sprite.Sprite):
     water = pygame.Surface((50, 10), pygame.SRCALPHA)
 
@@ -73,16 +74,6 @@ class Camera:
         self.dx = 0
 
 
-# начало игры
-def start_game():
-    running = True
-    while running:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                close()
-        pygame.display.flip()
-
-
 # экран проигрыша
 def game_over_screen():
     global screen
@@ -97,6 +88,7 @@ def game_over_screen():
     flag_game_over = False
     flag_menu_screen = False
     while running:
+        # изображения
         screen.blit(image_game_over, (0, 0))
         screen.blit(text, (570, 300))
         screen.blit(button_game_over, (830, 400))
@@ -228,6 +220,7 @@ def win_screen():
 
     running = True
     while running:
+        # изображения
         screen.blit(image_win_screen, (0, 0))
         screen.blit(text, (600, 300))
         screen.blit(menu_button, (720, 390))
@@ -297,6 +290,7 @@ def next_level_3_screen():
 # завершение игры
 def close():
     global SCORE, level
+    # добавление данных в базу данных после выхода из игры
     if level:
         if level in [1, 2, 3]:
             add_game(SCORE, level)
@@ -370,6 +364,9 @@ def generate_level(level):
                 hero = Main_Hero(x * SIZE_SP, y * SIZE_SP)
             elif level[y][x] == '*':
                 Coins(x * SIZE_SP, y * SIZE_SP)
+            elif level[y][x] == '!':
+                Dot(x * SIZE_SP, y * SIZE_SP)
+                level[y][x] = "."
 
     return x, y, hero
 
@@ -447,6 +444,8 @@ class Main_Hero(Sprite):
 
         self.mask = pygame.mask.from_surface(self.image)
 
+        self.count_contact = 0
+
     def update(self, *args) -> None:
         global block_group, water_group
 
@@ -463,9 +462,19 @@ class Main_Hero(Sprite):
             self.cur_frame = 1
             self.image = self.frames[self.cur_frame]
 
-        global SCORE, level, camera, ghost
-        if pygame.sprite.spritecollideany(self, water_group) or pygame.sprite.spritecollideany(self,
-                                                                                               ghost_group) and SCORE != 'GAME OVER':
+        global SCORE, level, camera, ghost, HP_hero
+
+        # уменьшение hp героя при соприкосновении с листочками
+        for hero, leaf in pygame.sprite.groupcollide(hero_group, leaf_group, False, True).items():
+            if leaf:
+                for l in leaf:
+                    self.count_contact += 1
+                    HP_hero -= 1
+                    l.kill()
+
+        # смерть героя
+        if pygame.sprite.spritecollideany(self, water_group) or \
+                pygame.sprite.spritecollideany(self, ghost_group) or HP_hero == 0 and SCORE != 'GAME OVER':
             if level and level in [1, 2, 3]:
                 add_game(SCORE, level)
             self.kill()
@@ -502,6 +511,8 @@ class Main_Hero(Sprite):
 
         for sprite in all_sprites:
             camera.apply(sprite)
+        for sprite in dot_group:
+            camera.apply(sprite)
 
     # поворот спрайта
     def rotate(self, movement):
@@ -518,7 +529,7 @@ class Main_Hero(Sprite):
 
 def level_1():
     global screen, level, hero_group, ghost_group, block_group, coins_group, particle_group, max_x, max_y, \
-        camera, water_group, level_map, SCORE,leaf_group
+        camera, water_group, level_map, SCORE, leaf_group, HP_hero, HP_ghost
 
     hero_group = pygame.sprite.Group()  # главный герой
     coins_group = pygame.sprite.Group()  # монеты
@@ -528,16 +539,16 @@ def level_1():
     water_group = pygame.sprite.Group()  # вода
     leaf_group = pygame.sprite.Group()  # ядовитые листы
 
-
     pause = False
     time = False
     esc_key = False
     level = 1
     clock = pygame.time.Clock()
-    count = 1
+    count = 10
     SCORE = 0
     x_pos_location = 0
     running = True
+    HP_ghost, HP_hero = 3, 3
 
     pygame.display.set_caption('Level 1')
     location_1 = pygame.transform.scale(load_image('location_1.jpg'), screen.get_size())
@@ -602,8 +613,9 @@ def level_1():
 
                 # окно game over
                 if time and time_now <= pygame.time.get_ticks():
-                    game_over_screen()
                     running = False
+                    game_over_screen()
+
             else:
                 pause = pause_screen()
         else:
@@ -616,7 +628,7 @@ def level_1():
         clock.tick(FPS)
 
 
-def update_screen(screen, text, ghost=False, coins=True, block=True, water=True, particle=True):
+def update_screen(screen, text, ghost=False, coins=True, block=True, water=True, particle=True, dot=False):
     if hero:
         hero_group.update()
         hero_group.draw(screen)
@@ -635,12 +647,15 @@ def update_screen(screen, text, ghost=False, coins=True, block=True, water=True,
     if particle:
         particle_group.draw(screen)
         particle_group.update()
+    if dot:
+        dot_group.draw(screen)
+        dot_group.update()
     screen.blit(text, (WIDHT - text.get_width() - 50, 10))
 
 
 def level_2():
-    global screen, level, hero_group, ghost_group, block_group, coins_group, particle_group, max_x, max_y, \
-        camera, water_group, level_map, SCORE, ghost, HP_ghost, HP_hero, leaf_group
+    global screen, level, hero_group, ghost_group, block_group, coins_group, particle_group, dot_group, max_x, max_y, \
+        camera, water_group, level_map, SCORE, ghost, HP_ghost, HP_hero, leaf_group, pos_leaf
 
     hero_group = pygame.sprite.Group()  # главный герой
     coins_group = pygame.sprite.Group()  # монеты
@@ -649,7 +664,7 @@ def level_2():
     block_group = pygame.sprite.Group()  # блоки
     water_group = pygame.sprite.Group()  # вода
     leaf_group = pygame.sprite.Group()  # ядовитые листы
-
+    dot_group = pygame.sprite.Group()  # зелья
 
     bullet = pygame.transform.scale(load_image("arrow.png", -1), (30, 30))  # пули
     lst_bullet = []
@@ -659,7 +674,6 @@ def level_2():
     time = False
     esc_key = False
     time_ghost = False
-    leaf_timer = False
     count = 30
     block_group = pygame.sprite.Group()
     # загружаем карту игры
@@ -683,13 +697,15 @@ def level_2():
     x_pos_location = 0
     run = True
 
+    HP_ghost, HP_hero = 3, 3
+
     # привидение
     ghost = Ghost()
     ghost_timer = pygame.USEREVENT + 1
     pygame.time.set_timer(ghost_timer, 7000)
 
-    time_leaf = pygame.USEREVENT + 1
-    pygame.time.set_timer(time_leaf, 7000)
+    leaf_timer = pygame.USEREVENT + 1
+    pygame.time.set_timer(leaf_timer, 7000)
 
     while run:
         if not esc_key:
@@ -720,7 +736,7 @@ def level_2():
                                     HP_ghost -= 1
                                     if HP_ghost == 0:
                                         ghost.kill()
-                                        HP_ghost = 2
+                                        HP_ghost = 3
                                 if lst_bullet:
                                     lst_bullet.pop(pos)
 
@@ -734,7 +750,7 @@ def level_2():
                 #     if key[pygame.K_RIGHT] and x_pos_location < 3000:
                 #         x_pos_location += hero.vel.x * 2
 
-                text = font_button.render(f'SCORE: {SCORE}', True, 'white')
+                text = font_button.render(f'HP: {HP_hero}       SCORE: {SCORE}', True, 'white')
 
                 # смена картинки у привидения
                 if not time_ghost:
@@ -746,13 +762,6 @@ def level_2():
                         time_ghost = False
                         ghost.cur_frame = (ghost.cur_frame + 1) % len(ghost.frames)
                         ghost.image = ghost.frames[ghost.cur_frame]
-
-                if not time_leaf:
-                    time_now_leaf = pygame.time.get_ticks() + 7000
-                    time_leaf = True
-                else:
-                    pass
-
 
                 if count == SCORE and level == 2:
                     add_game(SCORE, level)
@@ -767,7 +776,14 @@ def level_2():
                 # появление монет
                 elif SCORE % 2 == 0:
                     generate_coins(level_map)
-                    create_leafs((500,100))
+
+                if hero.rect.x > 500:
+                    pos_leaf = hero.rect.x - 200
+                else:
+                    pos_leaf = hero.rect.x + 200
+
+                if HP_hero < 2:
+                    generate_dot()
 
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
@@ -776,6 +792,8 @@ def level_2():
                     # появление новых привидений
                     if event.type == ghost_timer and ghost.rect.x == -150 and SCORE != 'GAME OVER':
                         ghost = Ghost()
+                    if event.type == leaf_timer and SCORE != 'GAME OVER':
+                        create_leafs((pos_leaf, 100))
 
                     elif event.type == pygame.KEYDOWN:
                         hero.update(event)
@@ -800,7 +818,7 @@ def level_2():
                 leaf_group.update()
                 for entity in all_sprites:
                     screen.blit(entity.image, entity.rect)
-                update_screen(screen, text)
+                update_screen(screen, text, dot=True)
                 if time and time_now <= pygame.time.get_ticks():
                     game_over_screen()
                     run = False
@@ -919,9 +937,9 @@ class Particle(pygame.sprite.Sprite):
 
 def create_leafs(position):
     # количество создаваемых частиц
-    leaf_count = 5
+    leaf_count = 4
     # возможные скорости
-    numbers = range(-5, 6)
+    numbers = range(-8, 8)
     for _ in range(leaf_count):
         Leaf(position, choice(numbers), choice(numbers))
 
@@ -929,7 +947,7 @@ def create_leafs(position):
 class Leaf(Sprite):
     lst_leafs = [load_image('leaf.png', -1)]
 
-    for scale in (10, 15, 20):
+    for scale in (35, 40):
         lst_leafs.append(pygame.transform.scale(choice(lst_leafs), (scale, scale)))
 
     def __init__(self, pos, dx, dy):
@@ -947,6 +965,37 @@ class Leaf(Sprite):
         self.rect.y += self.velocity[1]
         if not self.rect.colliderect((0, 0, 1550, 800)):
             self.kill()
+
+
+class Dot(pygame.sprite.Sprite):
+    dot = pygame.transform.scale(load_image("potion.png", -1), (SIZE_SP, SIZE_SP))
+
+    def __init__(self, x, y):
+        super().__init__(dot_group)
+        self.image = Dot.dot
+        self.rect = self.image.get_rect(center=(SIZE_SP // 2, SIZE_SP // 2))
+        self.rect = self.rect.move(x, y)
+        self.pos = (x // SIZE_SP, y // SIZE_SP)
+        self.abs_pos = self.rect.x
+
+    def update(self) -> None:
+        global HP_hero, level_map
+        x, y = self.pos
+        # print(x, y)
+        if pygame.sprite.spritecollideany(self, hero_group):
+            if HP_hero < 3:
+                HP_hero += 1
+            self.kill()
+            if level == 2:
+                level_map[y][x] = '!'
+
+
+def generate_dot():
+    global level_map
+    for y in range(len(level_map)):
+        for x in range(len(level_map[y])):
+            if level_map[y][x] == '!':
+                Dot(x * SIZE_SP, y * SIZE_SP)
 
 
 '''class Bullets(pygame.sprite.Sprite):
@@ -968,11 +1017,6 @@ class Leaf(Sprite):
         if not self.rect.colliderect((0, 0, 1550, 800)):
             self.kill()'''
 
-
-def create_arrows(position):
-    pass
-
-
 if __name__ == "__main__":
     pygame.init()
 
@@ -993,6 +1037,7 @@ if __name__ == "__main__":
     water_group = pygame.sprite.Group()  # вода
     leaf_group = pygame.sprite.Group()  # ядовитые листы
     all_sprites = pygame.sprite.Group()  # все спрайты
+    dot_group = pygame.sprite.Group()  # зелья
 
     # подключение звука
     pygame.mixer.music.load('sound/звук_пещеры.mp3')
@@ -1008,7 +1053,8 @@ if __name__ == "__main__":
     level_map = None
     max_x = 31
     max_y = 14
-    HP_ghost, HP_hero = 2, 2
+    HP_ghost, HP_hero = 3, 3
+    pos_leaf = 300
     sound_flag = True
     sound_status = None
     splash_screen()
