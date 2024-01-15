@@ -350,24 +350,28 @@ class Button(pygame.sprite.Sprite):
                 sound_status = 'on'
 
 
-def generate_level(level):
+def generate_level(level_map):
     x, y = None, None
     hero = None
-    for y in range(len(level)):
-        for x in range(len(level[y])):
-            if level[y][x] == '#':
+    global level
+    for y in range(len(level_map)):
+        for x in range(len(level_map[y])):
+            if level_map[y][x] == '#':
                 Block_1(x * 50, y * 53)
-            elif level[y][x] == '&':
+            elif level_map[y][x] == '&':
                 Block_2(x * 50.7, y * 51)
-            elif level[y][x] == '@':
+            elif level_map[y][x] == '@':
                 Surface_water(x * 51, y * 55)
-            elif level[y][x] == '%':
+            elif level_map[y][x] == '%':
                 hero = Main_Hero(x * SIZE_SP, y * SIZE_SP)
-            elif level[y][x] == '*':
+            elif level_map[y][x] == '*':
                 Coins(x * SIZE_SP, y * SIZE_SP)
-            elif level[y][x] == '!':
-                Dot(x * SIZE_SP, y * SIZE_SP)
-                level[y][x] = "."
+            elif level_map[y][x] == '!':
+                if level == 2:
+                    Dot('2', x * SIZE_SP, y * SIZE_SP)
+                else:
+                    Dot('3', x * SIZE_SP, y * SIZE_SP)
+                level_map[y][x] = "."
 
     return x, y, hero
 
@@ -501,7 +505,7 @@ class Main_Hero(Sprite):
 
         # смерть героя
         if pygame.sprite.spritecollideany(self, water_group) or \
-                pygame.sprite.spritecollideany(self,ghost_group) or HP_hero == 0 and SCORE != 'GAME OVER' \
+                pygame.sprite.spritecollideany(self, ghost_group) or HP_hero == 0 and SCORE != 'GAME OVER' \
                 or pygame.sprite.spritecollideany(self, spider_group):
             if level and level in [1, 2, 3]:
                 add_game(SCORE, level)
@@ -668,7 +672,8 @@ def level_1():
 
 
 # отрисовка и обновление всех спрайтов определённых групп
-def update_screen(screen, text, ghost=False, spider=False, coins=True, block=True, water=True, particle=True, dot=False):
+def update_screen(screen, text, ghost=False, spider=False, coins=True, block=True, water=True, particle=True,
+                  dot=False):
     if hero:
         hero_group.update()
         hero_group.draw(screen)
@@ -1005,7 +1010,7 @@ def level_3():
                         close()
 
                     # появление новых привидений
-                    if event.type == spider_timer and ghost.rect.x == -150 and SCORE != 'GAME OVER':
+                    if event.type == spider_timer and spider.rect.x == -150 and SCORE != 'GAME OVER':
                         spider = Spider()
                     if event.type == leaf_timer and SCORE != 'GAME OVER':
                         create_leafs((pos_leaf, 100))
@@ -1194,11 +1199,14 @@ class Leaf(Sprite):
 
 
 class Dot(pygame.sprite.Sprite):
-    dot = pygame.transform.scale(load_image("potion.png", -1), (SIZE_SP, SIZE_SP))
+    dot_images = {
+        '2': pygame.transform.scale(load_image("potion.png", -1), (SIZE_SP, SIZE_SP)),
+        '3': pygame.transform.scale(load_image("potion_3.png", -1), (SIZE_SP, SIZE_SP))
+    }
 
-    def __init__(self, x, y):
+    def __init__(self, type_dot, x, y):
         super().__init__(dot_group)
-        self.image = Dot.dot
+        self.image = Dot.dot_images[type_dot]
         self.rect = self.image.get_rect(center=(SIZE_SP // 2, SIZE_SP // 2))
         self.rect = self.rect.move(x, y)
         self.pos = (x // SIZE_SP, y // SIZE_SP)
@@ -1211,16 +1219,19 @@ class Dot(pygame.sprite.Sprite):
             if HP_hero < 3:
                 HP_hero += 1
             self.kill()
-            if level == 2:
+            if level == 2 or level == 3:
                 level_map[y][x] = '!'
 
 
 def generate_dot():
-    global level_map
+    global level_map, level
     for y in range(len(level_map)):
         for x in range(len(level_map[y])):
             if level_map[y][x] == '!':
-                Dot(x * SIZE_SP, y * SIZE_SP)
+                if level == 2:
+                    Dot('2', x * SIZE_SP, y * SIZE_SP)
+                else:
+                    Dot('3', x * SIZE_SP, y * SIZE_SP)
 
 
 if __name__ == "__main__":
