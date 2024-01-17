@@ -40,6 +40,7 @@ class Block_1(pygame.sprite.Sprite):
         self.image = self.block
         self.rect = self.image.get_rect().move(x, y)
         self.abs_pos = self.rect.x
+        self.mask = pygame.mask.from_surface(self.image)
 
 
 class Block_2(pygame.sprite.Sprite):
@@ -284,7 +285,7 @@ def next_level_3_screen():
                 if 870 <= event.pos[0] <= 970 and 300 <= event.pos[1] <= 370:
                     running = False
         pygame.display.flip()
-    level_2()
+    level_3()
 
 
 # завершение игры
@@ -350,24 +351,28 @@ class Button(pygame.sprite.Sprite):
                 sound_status = 'on'
 
 
-def generate_level(level):
+def generate_level(level_map):
     x, y = None, None
     hero = None
-    for y in range(len(level)):
-        for x in range(len(level[y])):
-            if level[y][x] == '#':
+    global level
+    for y in range(len(level_map)):
+        for x in range(len(level_map[y])):
+            if level_map[y][x] == '#':
                 Block_1(x * 50, y * 53)
-            elif level[y][x] == '&':
+            elif level_map[y][x] == '&':
                 Block_2(x * 50.7, y * 51)
-            elif level[y][x] == '@':
+            elif level_map[y][x] == '@':
                 Surface_water(x * 51, y * 55)
-            elif level[y][x] == '%':
+            elif level_map[y][x] == '%':
                 hero = Main_Hero(x * SIZE_SP, y * SIZE_SP)
-            elif level[y][x] == '*':
+            elif level_map[y][x] == '*':
                 Coins(x * SIZE_SP, y * SIZE_SP)
-            elif level[y][x] == '!':
-                Dot(x * SIZE_SP, y * SIZE_SP)
-                level[y][x] = "."
+            elif level_map[y][x] == '!':
+                if level == 2:
+                    Dot('2', x * SIZE_SP, y * SIZE_SP)
+                else:
+                    Dot('3', x * SIZE_SP, y * SIZE_SP)
+                level_map[y][x] = "."
 
     return x, y, hero
 
@@ -418,6 +423,32 @@ class Ghost(Sprite):
             self.rect.x -= 1.8
 
 
+class Spider(Sprite):
+    colums = 8
+    row = 1
+    img = pygame.transform.scale(load_image('spider.png', -1), (920, 100))
+    spider_img = pygame.transform.flip(img, True, False)
+
+    def __init__(self):
+        super().__init__(spider_group)
+        self.sheet = Spider.spider_img
+        self.frames = []
+        self.cut_sheet(self.sheet, Spider.colums, Spider.row)
+        self.cur_frame = 0
+        self.image = self.frames[self.cur_frame]
+
+        self.rect = self.image.get_rect()
+        self.rect.x = WIDHT + 50
+        self.rect.y = 480
+
+    def update(self) -> None:
+        global SCORE
+        if self.rect.x == -150:
+            self.kill()
+        else:
+            self.rect.x -= 1.8
+
+
 class Main_Hero(Sprite):
     columns = 10
     rows = 1
@@ -443,7 +474,7 @@ class Main_Hero(Sprite):
 
         self.mask = pygame.mask.from_surface(self.image)
 
-        self.count_contact = 0
+        self.count_leaf_contact, self.count_thorn_contact = 0, 0
 
     def update(self, *args) -> None:
         global block_group, water_group
@@ -469,13 +500,20 @@ class Main_Hero(Sprite):
         for hero, leaf in pygame.sprite.groupcollide(hero_group, leaf_group, False, True).items():
             if leaf:
                 for l in leaf:
-                    self.count_contact += 1
+                    self.count_leaf_contact += 1
                     HP_hero -= 1
                     l.kill()
+        for hero, thorn in pygame.sprite.groupcollide(hero_group, thorns_group, False, True).items():
+            if thorn:
+                for t in thorn:
+                    self.count_thorn_contact += 1
+                    HP_hero -= 1
+                    t.kill()
 
         # смерть героя
         if pygame.sprite.spritecollideany(self, water_group) or \
-                pygame.sprite.spritecollideany(self, ghost_group) or HP_hero == 0 and SCORE != 'GAME OVER':
+                pygame.sprite.spritecollideany(self, ghost_group) or HP_hero == 0 and SCORE != 'GAME OVER' \
+                or pygame.sprite.spritecollideany(self, spider_group):
             if level and level in [1, 2, 3]:
                 add_game(SCORE, level)
             self.kill()
@@ -546,7 +584,7 @@ def level_1():
     esc_key = False
     level = 1
     clock = pygame.time.Clock()
-    count = 10
+    count = 5
     SCORE = 0
     x_pos_location = 0
     running = True
@@ -641,7 +679,8 @@ def level_1():
 
 
 # отрисовка и обновление всех спрайтов определённых групп
-def update_screen(screen, text, ghost=False, coins=True, block=True, water=True, particle=True, dot=False):
+def update_screen(screen, text, ghost=False, spider=False, coins=True, block=True, water=True, particle=True,
+                  dot=False):
     if hero:
         hero_group.update()
         hero_group.draw(screen)
@@ -651,6 +690,9 @@ def update_screen(screen, text, ghost=False, coins=True, block=True, water=True,
     if ghost:
         ghost_group.update()
         ghost_group.draw(screen)
+    if spider:
+        spider_group.update()
+        spider_group.draw(screen)
     if water:
         water_group.update()
         water_group.draw(screen)
@@ -689,7 +731,7 @@ def level_2():
     time = False
     esc_key = False
     time_ghost = False
-    count = 30
+    count = 7
     block_group = pygame.sprite.Group()
 
     # загружаем карту игры
@@ -846,6 +888,186 @@ def level_2():
         clock.tick(50)
 
 
+def level_3():
+    global screen, level, hero_group, spider_group, block_group, coins_group, particle_group, dot_group, max_x, max_y, \
+        camera, water_group, level_map, SCORE, ghost, HP_spider, HP_hero, thorns_group, pos_thorn
+
+    hero_group = pygame.sprite.Group()  # главный герой
+    coins_group = pygame.sprite.Group()  # монеты
+    spider_group = pygame.sprite.Group()  # пауки
+    particle_group = pygame.sprite.Group()  # частицы
+    block_group = pygame.sprite.Group()  # блоки
+    thorns_group = pygame.sprite.Group()  # шипы
+    dot_group = pygame.sprite.Group()  # зелья
+
+    # пули
+    bullet = pygame.transform.scale(load_image("arrow.png", -1), (30, 30))  # пули
+    lst_bullet = []
+
+    pause = False
+    time = False
+    esc_key = False
+    time_spider = False
+    count = 30
+    block_group = pygame.sprite.Group()
+
+    # загружаем карту игры
+    level_map = load_level(f"level_3.map")
+    max_x, max_y, hero = generate_level(level_map)
+
+    # создаем новую группу спрайтов и экземпляр класса Camera
+    all_sprites = pygame.sprite.Group()
+    all_sprites.add(hero)
+    camera = Camera()
+    camera.update()
+
+    pygame.display.set_caption('Level 3')
+    location_3 = pygame.transform.scale(load_image('location_3.png').convert(), screen.get_size())
+    location_3_flip = pygame.transform.flip(location_3, True, False)
+
+    level = 3
+    clock = pygame.time.Clock()
+    SCORE = 0
+    x_pos_location = 0
+    run = True
+
+    HP_spider, HP_hero = 3, 3
+
+    # привидение
+    spider = Spider()
+    spider_timer = pygame.USEREVENT + 1
+    pygame.time.set_timer(spider_timer, 7000)
+
+    # таймер листов
+    thorn_timer = pygame.USEREVENT + 1
+    pygame.time.set_timer(thorn_timer, 7000)
+
+    while run:
+        if not esc_key:
+            if not pause:
+                screen.fill(0)
+                screen.blit(location_3, (x_pos_location, 0))
+                screen.blit(location_3_flip, (x_pos_location + WIDHT, 0))
+                screen.blit(location_3_flip, (x_pos_location - WIDHT, 0))
+                screen.blit(location_3, (x_pos_location + WIDHT + WIDHT, 0))
+                screen.blit(location_3_flip, (x_pos_location + WIDHT + WIDHT + WIDHT, 0))
+                screen.blit(location_3, (x_pos_location + WIDHT + WIDHT + WIDHT + WIDHT, 0))
+                screen.blit(location_3, (x_pos_location - WIDHT - WIDHT, 0))
+
+                x_pos_location -= hero.vel.x * 2
+
+                # выпуск пуль в привидение
+                if lst_bullet:
+                    for pos, bul in enumerate(lst_bullet):
+                        screen.blit(bullet, (bul.x, bul.y))
+                        bul.x += 8
+                        if (bul.x - hero.rect.x > 500 and lst_bullet) or (bul.x > WIDHT):
+                            lst_bullet.pop(pos)
+                        if spider:
+                            if bul.colliderect(spider):
+                                if HP_spider > 0:
+                                    HP_spider -= 1
+                                    if HP_spider == 0:
+                                        spider.kill()
+                                        HP_spider = 3
+                                if lst_bullet:
+                                    lst_bullet.pop(pos)
+
+                # отображение очков и hp героя
+                text = font_button.render(f'HP: {HP_hero}       SCORE: {SCORE}', True, 'white')
+
+                # смена картинки у привидения
+                if not time_spider:
+                    time_now_spider = pygame.time.get_ticks() + 400
+                    time_spider = True
+                else:
+                    if time_spider and time_now_spider <= pygame.time.get_ticks():
+                        time_now_spider = pygame.time.get_ticks() + 400
+                        time_spider = False
+                        spider.cur_frame = (spider.cur_frame + 1) % len(spider.frames)
+                        spider.image = spider.frames[spider.cur_frame]
+
+                # переход на следующий уровень
+                if count == SCORE and level == 2:
+                    add_game(SCORE, level)
+                    level += 1
+                    next_level_3_screen()
+
+                # проигрыш
+                if SCORE == 'GAME OVER':
+                    if not time:
+                        time_now = pygame.time.get_ticks() + 3000
+                        time = True
+
+                # появление монет
+                elif SCORE % 2 == 0:
+                    generate_coins(level_map)
+
+                # появление листиков возле героя
+                if hero.rect.x > 500:
+                    pos_thorn = hero.rect.x - 200
+                else:
+                    pos_thorn = hero.rect.x + 200
+
+                # создание новых зельев
+                if 0 < HP_hero < 2:
+                    generate_dot()
+
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        close()
+
+                    # появление новых привидений
+                    if event.type == spider_timer and spider.rect.x == -150 and SCORE != 'GAME OVER':
+                        spider = Spider()
+                    if event.type == thorn_timer and SCORE != 'GAME OVER':
+                        for t in thorns_group:
+                            t.kill()
+                        create_thorns((pos_thorn, 100))
+
+                    elif event.type == pygame.KEYDOWN:
+                        hero.update(event)
+                        # прыжок
+                        if event.key == pygame.K_UP:
+                            hero.jump()
+                        # выпуск пули при нажатии на пробел
+                        elif event.key == pygame.K_SPACE and SCORE != 'GAME OVER':
+                            lst_bullet.append(bullet.get_rect(topleft=(hero.rect.x + 50, hero.rect.y + 3)))
+                        # пауза
+                        elif event.key == pygame.K_p:
+                            pygame.mixer.music.pause()
+                            pause = True
+                        # выход в меню
+                        elif event.key == pygame.K_ESCAPE:
+                            esc_key = True
+                hero.move()
+                hero.update()
+
+                # отображение всех спрайтов
+                for entity in all_sprites:
+                    screen.blit(entity.image, entity.rect)
+                update_screen(screen, text, dot=True)
+                spider.update()
+                spider_group.draw(screen)
+                spider_group.update()
+                thorns_group.draw(screen)
+                thorns_group.update()
+
+                # окно game over
+                if time and time_now <= pygame.time.get_ticks():
+                    game_over_screen()
+                    run = False
+            else:
+                pause = pause_screen()
+        else:
+            if level:
+                if level == 3:
+                    add_game(SCORE, level)
+                    esc_key = splash_screen()
+        pygame.display.update()
+        clock.tick(50)
+
+
 # экран меню
 def splash_screen():
     global screen, level, hero_group, ghost_group, block_group, coins_group, particle_group, max_x, max_y, SCORE, sound_flag
@@ -986,12 +1208,47 @@ class Leaf(Sprite):
             self.kill()
 
 
-class Dot(pygame.sprite.Sprite):
-    dot = pygame.transform.scale(load_image("potion.png", -1), (SIZE_SP, SIZE_SP))
+class Thorn(Sprite):
+    lst_thorns = [pygame.transform.scale(load_image("thorn.png", -1), (35, 35))]
 
-    def __init__(self, x, y):
+    for scale in (35, 40):
+        lst_thorns.append(pygame.transform.scale(choice(lst_thorns), (scale, scale)))
+
+    def __init__(self, pos, dx, dy):
+        super().__init__(thorns_group)
+        self.image = choice(self.lst_thorns)
+        self.rect = self.image.get_rect()
+
+        self.velocity = [dx, dy]
+        self.rect.x, self.rect.y = pos
+        self.gravity = 0.4
+
+    def update(self):
+        self.velocity[1] += self.gravity
+        self.rect.x += self.velocity[0]
+        self.rect.y += self.velocity[1]
+        if not self.rect.colliderect((0, 0, 1550, 800)):
+            self.kill()
+
+
+def create_thorns(position):
+    # количество создаваемых частиц
+    thorn_count = 4
+    # возможные скорости
+    numbers = range(-8, 8)
+    for _ in range(thorn_count):
+        Thorn(position, choice(numbers), choice(numbers))
+
+
+class Dot(pygame.sprite.Sprite):
+    dot_images = {
+        '2': pygame.transform.scale(load_image("potion.png", -1), (SIZE_SP, SIZE_SP)),
+        '3': pygame.transform.scale(load_image("potion_3.png", -1), (SIZE_SP, SIZE_SP))
+    }
+
+    def __init__(self, type_dot, x, y):
         super().__init__(dot_group)
-        self.image = Dot.dot
+        self.image = Dot.dot_images[type_dot]
         self.rect = self.image.get_rect(center=(SIZE_SP // 2, SIZE_SP // 2))
         self.rect = self.rect.move(x, y)
         self.pos = (x // SIZE_SP, y // SIZE_SP)
@@ -1004,16 +1261,19 @@ class Dot(pygame.sprite.Sprite):
             if HP_hero < 3:
                 HP_hero += 1
             self.kill()
-            if level == 2:
+            if level == 2 or level == 3:
                 level_map[y][x] = '!'
 
 
 def generate_dot():
-    global level_map
+    global level_map, level
     for y in range(len(level_map)):
         for x in range(len(level_map[y])):
             if level_map[y][x] == '!':
-                Dot(x * SIZE_SP, y * SIZE_SP)
+                if level == 2:
+                    Dot('2', x * SIZE_SP, y * SIZE_SP)
+                else:
+                    Dot('3', x * SIZE_SP, y * SIZE_SP)
 
 
 if __name__ == "__main__":
@@ -1035,8 +1295,10 @@ if __name__ == "__main__":
     block_group = pygame.sprite.Group()  # блоки
     water_group = pygame.sprite.Group()  # вода
     leaf_group = pygame.sprite.Group()  # ядовитые листы
+    thorns_group = pygame.sprite.Group()  # шипы
     all_sprites = pygame.sprite.Group()  # все спрайты
     dot_group = pygame.sprite.Group()  # зелья
+    spider_group = pygame.sprite.Group()  # пауки
 
     # подключение звука
     pygame.mixer.music.load('sound/звук_пещеры.mp3')
@@ -1052,8 +1314,8 @@ if __name__ == "__main__":
     level_map = None
     max_x = 31
     max_y = 14
-    HP_ghost, HP_hero = 3, 3
-    pos_leaf = 300
+    HP_ghost, HP_hero, HP_spider = 3, 3, 3
+    pos_leaf, pos_thorn = 300, 300
     sound_flag = True
     sound_status = None
     splash_screen()
