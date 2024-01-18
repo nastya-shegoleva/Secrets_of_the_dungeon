@@ -235,7 +235,7 @@ def win_screen():
                 if 710 <= event.pos[0] <= 800 and 380 <= event.pos[1] <= 470:
                     running = False
         pygame.display.flip()
-    game_over_screen()
+    splash_screen()
 
 
 # переход на 2 уровень
@@ -449,10 +449,19 @@ class Spider(Sprite):
             self.rect.x -= 1.8
 
 
-class Main_Hero(Sprite):
-    columns = 10
+class Main_Hero(pygame.sprite.Sprite):
+    # columns = 10
     rows = 1
-    img = pygame.transform.scale(load_image("main_hero.png", -1), (730, 100))
+    walk_right = [pygame.transform.scale(load_image('человек_правая/чел1_правая.png'), (95, 112)),
+                  pygame.transform.scale(load_image('человек_правая/чел2_правая.png'), (95, 112)),
+                  pygame.transform.scale(load_image('человек_правая/чел3_правая.png'), (95, 112)),
+                  pygame.transform.scale(load_image('человек_правая/чел4_правая.png'), (95, 112))]
+    walk_left = [pygame.transform.scale(load_image('человек_левая/чел1_лев (2).png'),(95, 112)),
+                 pygame.transform.scale(load_image('человек_левая/чел4_лев (2).png'),(95, 112)),
+                 pygame.transform.scale(load_image('человек_левая/чел3_лев.png'),(95, 112)),
+                 pygame.transform.scale(load_image('человек_левая/чел3_лев.png'),(95, 112))]
+
+    # img = pygame.transform.scale(load_image("main_hero.png", -1), (730, 100))
 
     def __init__(self, x, y):
         super().__init__(hero_group)
@@ -460,11 +469,8 @@ class Main_Hero(Sprite):
         self.ACC = 0.2
         self.FRIC = -0.2
 
-        self.sheet = Main_Hero.img
-        self.frames = []
-        self.cut_sheet(self.sheet, Main_Hero.columns, Main_Hero.rows)
         self.cur_frame = 0
-        self.image = self.frames[self.cur_frame]
+        self.image = self.walk_right[self.cur_frame]
         self.rect = self.image.get_rect()
         self.rect.x, self.rect.y = x, y
 
@@ -487,12 +493,18 @@ class Main_Hero(Sprite):
 
         # поворот спрайта
         keys = pygame.key.get_pressed()
-        if keys[pygame.K_RIGHT] or keys[pygame.K_LEFT]:
-            self.cur_frame = (self.cur_frame + 1) % len(self.frames)
-            self.image = self.frames[self.cur_frame]
-        if keys[pygame.K_UP]:
-            self.cur_frame = 1
-            self.image = self.frames[self.cur_frame]
+        if keys[pygame.K_RIGHT]:
+            self.cur_frame = (self.cur_frame + 1) % len(self.walk_right)
+            self.image = self.walk_right[self.cur_frame]
+            if keys[pygame.K_UP]:
+                self.cur_frame = 3
+                self.image = self.walk_right[self.cur_frame]
+        if keys[pygame.K_LEFT]:
+            self.cur_frame = (self.cur_frame + 1) % len(self.walk_left)
+            self.image = self.walk_left[self.cur_frame]
+            if keys[pygame.K_UP]:
+                self.cur_frame = 3
+                self.image = self.walk_left[self.cur_frame]
 
         global SCORE, level, camera, ghost, HP_hero
 
@@ -534,10 +546,8 @@ class Main_Hero(Sprite):
         # меняем направление движения и фото спрайта
         pressed_keys = pygame.key.get_pressed()
         if pressed_keys[pygame.K_LEFT] and self.rect.x > 20:
-            self.rotate('left')
             self.acc.x = -self.ACC
         if pressed_keys[pygame.K_RIGHT] and self.rect.x < 1460:
-            self.rotate('right')
             self.acc.x = self.ACC
 
         self.acc.x += self.vel.x * self.FRIC
@@ -553,18 +563,6 @@ class Main_Hero(Sprite):
             camera.apply(sprite)
         for sprite in dot_group:
             camera.apply(sprite)
-
-    # поворот спрайта
-    def rotate(self, movement):
-        self.frames = []
-        if movement == "left":
-            image = pygame.transform.flip(Main_Hero.img, True, False)
-            self.cut_sheet(image, Main_Hero.columns, Main_Hero.rows)
-            self.image = self.frames[self.cur_frame]
-        elif movement == "right":
-            image = Main_Hero.img
-            self.cut_sheet(image, Main_Hero.columns, Main_Hero.rows)
-            self.image = self.frames[self.cur_frame]
 
 
 def level_1():
@@ -584,7 +582,7 @@ def level_1():
     esc_key = False
     level = 1
     clock = pygame.time.Clock()
-    count = 5
+    count = 17
     SCORE = 0
     x_pos_location = 0
     running = True
@@ -722,6 +720,7 @@ def level_2():
     leaf_group = pygame.sprite.Group()  # ядовитые листы
     dot_group = pygame.sprite.Group()  # зелья
 
+
     # пули
     bullet = pygame.transform.scale(load_image("arrow.png", -1), (30, 30))  # пули
     lst_bullet = []
@@ -731,7 +730,7 @@ def level_2():
     time = False
     esc_key = False
     time_ghost = False
-    count = 7
+    count = 20
     block_group = pygame.sprite.Group()
 
     # загружаем карту игры
@@ -852,7 +851,7 @@ def level_2():
                             hero.jump()
                         # выпуск пули при нажатии на пробел
                         elif event.key == pygame.K_SPACE and SCORE != 'GAME OVER':
-                            lst_bullet.append(bullet.get_rect(topleft=(hero.rect.x + 50, hero.rect.y + 3)))
+                            lst_bullet.append(bullet.get_rect(topleft=(hero.rect.x + 50, hero.rect.y + 50)))
                         # пауза
                         elif event.key == pygame.K_p:
                             pygame.mixer.music.pause()
@@ -899,6 +898,7 @@ def level_3():
     block_group = pygame.sprite.Group()  # блоки
     thorns_group = pygame.sprite.Group()  # шипы
     dot_group = pygame.sprite.Group()  # зелья
+
 
     # пули
     bullet = pygame.transform.scale(load_image("arrow.png", -1), (30, 30))  # пули
@@ -988,10 +988,10 @@ def level_3():
                         spider.image = spider.frames[spider.cur_frame]
 
                 # переход на следующий уровень
-                if count == SCORE and level == 2:
+                if count == SCORE and level == 1:
                     add_game(SCORE, level)
-                    level += 1
-                    next_level_3_screen()
+                    run = False
+                    win_screen()
 
                 # проигрыш
                 if SCORE == 'GAME OVER':
@@ -1032,7 +1032,7 @@ def level_3():
                             hero.jump()
                         # выпуск пули при нажатии на пробел
                         elif event.key == pygame.K_SPACE and SCORE != 'GAME OVER':
-                            lst_bullet.append(bullet.get_rect(topleft=(hero.rect.x + 50, hero.rect.y + 3)))
+                            lst_bullet.append(bullet.get_rect(topleft=(hero.rect.x + 50, hero.rect.y + 50)))
                         # пауза
                         elif event.key == pygame.K_p:
                             pygame.mixer.music.pause()
@@ -1055,8 +1055,9 @@ def level_3():
 
                 # окно game over
                 if time and time_now <= pygame.time.get_ticks():
-                    game_over_screen()
                     run = False
+                    game_over_screen()
+
             else:
                 pause = pause_screen()
         else:
@@ -1070,7 +1071,7 @@ def level_3():
 
 # экран меню
 def splash_screen():
-    global screen, level, hero_group, ghost_group, block_group, coins_group, particle_group, max_x, max_y, SCORE, sound_flag
+    global screen, level, max_x, max_y, SCORE, sound_flag
 
     # фото и текст на экране меню
     main_menu = pygame.transform.scale(load_image('main_menu.jpg'), screen.get_size())
@@ -1178,7 +1179,7 @@ class Particle(pygame.sprite.Sprite):
 
 def create_leafs(position):
     # количество создаваемых частиц
-    leaf_count = 4
+    leaf_count = 5
     # возможные скорости
     numbers = range(-8, 8)
     for _ in range(leaf_count):
@@ -1233,7 +1234,7 @@ class Thorn(Sprite):
 
 def create_thorns(position):
     # количество создаваемых частиц
-    thorn_count = 4
+    thorn_count = 5
     # возможные скорости
     numbers = range(-8, 8)
     for _ in range(thorn_count):
