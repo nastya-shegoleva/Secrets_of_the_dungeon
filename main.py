@@ -1,5 +1,4 @@
-import math
-from random import choice, sample
+from random import choice
 
 import pygame
 import os
@@ -936,11 +935,11 @@ def level_3():
     # привидение
     spider = Spider()
     spider_timer = pygame.USEREVENT + 1
-    pygame.time.set_timer(spider_timer, 7000)
+    pygame.time.set_timer(spider_timer, 6000)
 
     # таймер листов
     thorn_timer = pygame.USEREVENT + 1
-    pygame.time.set_timer(thorn_timer, 7000)
+    pygame.time.set_timer(thorn_timer, 6000)
 
     while run:
         if not esc_key:
