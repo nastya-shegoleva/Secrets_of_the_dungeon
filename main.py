@@ -11,7 +11,7 @@ from data_db.game_func import Game
 WIDHT = 1550
 HEIGHT = 800
 SIZE_SP = 50
-FPS = 40
+FPS = 50
 
 
 # загрузка изображений
@@ -171,6 +171,7 @@ def rating_screen():
     text = font.render("Rating", True, 'palegreen2')
     image = pygame.transform.scale(load_image('rating.jpg'), screen.get_size())
     pygame.display.set_caption('Rating')
+    table_name = font_button.render('   id   |   level   |   score   ', True, 'white')
 
     running = True
     esc_key = False
@@ -179,6 +180,7 @@ def rating_screen():
         if not esc_key:
             screen.blit(image, (0, 0))
             screen.blit(text, (600, 50))
+            screen.blit(table_name, (540, 150))
 
             lst = []
             db_sess = db_session.create_session()
@@ -196,12 +198,11 @@ def rating_screen():
             y = 4
             for el in list_db[:10]:
                 if SCORE != 'GAME OVER':
-                    table_name = font_button.render('   id   |   level   |   score   ', True, 'white')
+
                     meaning_rating = font_button.render(
                         f'{count}     |        {el.level}        |     {el.score}   ',
                         True, pygame.Color("white"))
                     count += 1
-                    screen.blit(table_name, (540, 150))
                     screen.blit(meaning_rating, (570, y * SIZE_SP))
                     y += 1
         else:
@@ -455,10 +456,10 @@ class Main_Hero(pygame.sprite.Sprite):
                   pygame.transform.scale(load_image('человек_правая/чел2_правая.png'), (95, 112)),
                   pygame.transform.scale(load_image('человек_правая/чел3_правая.png'), (95, 112)),
                   pygame.transform.scale(load_image('человек_правая/чел4_правая.png'), (95, 112))]
-    walk_left = [pygame.transform.scale(load_image('человек_левая/чел1_лев (2).png'),(95, 112)),
-                 pygame.transform.scale(load_image('человек_левая/чел4_лев (2).png'),(95, 112)),
-                 pygame.transform.scale(load_image('человек_левая/чел3_лев.png'),(95, 112)),
-                 pygame.transform.scale(load_image('человек_левая/чел3_лев.png'),(95, 112))]
+    walk_left = [pygame.transform.scale(load_image('человек_левая/чел1_лев (2).png'), (95, 112)),
+                 pygame.transform.scale(load_image('человек_левая/чел4_лев (2).png'), (95, 112)),
+                 pygame.transform.scale(load_image('человек_левая/чел3_лев.png'), (95, 112)),
+                 pygame.transform.scale(load_image('человек_левая/чел3_лев.png'), (95, 112))]
 
     # img = pygame.transform.scale(load_image("main_hero.png", -1), (730, 100))
 
@@ -484,7 +485,7 @@ class Main_Hero(pygame.sprite.Sprite):
     def update(self, *args) -> None:
         global block_group, water_group
 
-        # возможность ходит по твёрдой поверхности
+        # возможность ходить по твёрдой поверхности
         contact = pygame.sprite.spritecollide(self, block_group, False)
         if contact:
             self.pos.y = contact[0].rect.top + 1
@@ -505,7 +506,7 @@ class Main_Hero(pygame.sprite.Sprite):
                 self.cur_frame = 3
                 self.image = self.walk_left[self.cur_frame]
 
-        global SCORE, level, camera, ghost, HP_hero
+        global SCORE, level, camera, ghost, HP_hero, HP_ghost
 
         # уменьшение hp героя при соприкосновении с листочками
         for hero, leaf in pygame.sprite.groupcollide(hero_group, leaf_group, False, True).items():
@@ -532,6 +533,7 @@ class Main_Hero(pygame.sprite.Sprite):
             SCORE = 'GAME OVER'
             level = None
             HP_hero = 0
+            HP_ghost = 0
 
     def jump(self):
         global block_group
@@ -626,6 +628,7 @@ def level_1():
                     if not time:
                         time_now = pygame.time.get_ticks() + 3000
                         time = True
+
                 # появление новых монет
                 elif SCORE % 2 == 0:
                     generate_coins(level_map)
@@ -719,11 +722,9 @@ def level_2():
     leaf_group = pygame.sprite.Group()  # ядовитые листы
     dot_group = pygame.sprite.Group()  # зелья
 
-
     # пули
     bullet = pygame.transform.scale(load_image("arrow.png", -1), (30, 30))  # пули
     lst_bullet = []
-    HP_ghost = 2
 
     pause = False
     time = False
@@ -883,7 +884,7 @@ def level_2():
                     add_game(SCORE, level)
                     esc_key = splash_screen()
         pygame.display.update()
-        clock.tick(50)
+        clock.tick(FPS)
 
 
 def level_3():
@@ -897,7 +898,6 @@ def level_3():
     block_group = pygame.sprite.Group()  # блоки
     thorns_group = pygame.sprite.Group()  # шипы
     dot_group = pygame.sprite.Group()  # зелья
-
 
     # пули
     bullet = pygame.transform.scale(load_image("arrow.png", -1), (30, 30))  # пули
@@ -987,7 +987,7 @@ def level_3():
                         spider.image = spider.frames[spider.cur_frame]
 
                 # переход на следующий уровень
-                if count == SCORE and level == 1:
+                if count == SCORE and level == 3:
                     add_game(SCORE, level)
                     run = False
                     win_screen()
@@ -1065,7 +1065,7 @@ def level_3():
                     add_game(SCORE, level)
                     esc_key = splash_screen()
         pygame.display.update()
-        clock.tick(50)
+        clock.tick(FPS)
 
 
 # экран меню
