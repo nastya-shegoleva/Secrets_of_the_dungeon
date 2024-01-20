@@ -616,7 +616,7 @@ def level_1():
 
                 x_pos_location -= hero.vel.x * 2
 
-                # переход на следующий уровень при достижении определённого количества очков
+                # переход на следующий уровень при достижении определённого кол-ва очков
                 if count == SCORE and level == 1:
                     add_game(SCORE, level)
                     level += 1
@@ -676,6 +676,7 @@ def level_1():
 
         pygame.display.update()
         clock.tick(FPS)
+
 
 
 # отрисовка и обновление всех спрайтов определённых групп
